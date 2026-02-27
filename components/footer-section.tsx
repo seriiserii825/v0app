@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState, useTransition } from "react"
 import Link from "next/link"
 import {
   MapPin,
@@ -10,11 +10,17 @@ import {
   Send,
   Facebook,
   Instagram,
+  Paperclip,
+  X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { sendContactEmail } from "@/app/actions/send-email"
+
+const ACCEPTED = ".csv,.docx,.pdf"
+const MAX_MB = 10
 
 export function FooterSection() {
   const [formState, setFormState] = useState({
@@ -23,13 +29,55 @@ export function FooterSection() {
     phone: "",
     message: "",
   })
-  const [submitted, setSubmitted] = useState(false)
+  const [file, setFile] = useState<File | null>(null)
+  const [fileError, setFileError] = useState("")
+  const [status, setStatus] = useState<"idle" | "success" | "error">("idle")
+  const [errorMsg, setErrorMsg] = useState("")
+  const [isPending, startTransition] = useTransition()
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = e.target.files?.[0] ?? null
+    setFileError("")
+    if (!picked) return setFile(null)
+
+    if (picked.size > MAX_MB * 1024 * 1024) {
+      setFileError(`File must be under ${MAX_MB} MB.`)
+      e.target.value = ""
+      return setFile(null)
+    }
+    setFile(picked)
+  }
+
+  const removeFile = () => {
+    setFile(null)
+    setFileError("")
+    if (fileRef.current) fileRef.current.value = ""
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    setSubmitted(true)
-    setFormState({ name: "", email: "", phone: "", message: "" })
-    setTimeout(() => setSubmitted(false), 4000)
+
+    const data = new FormData()
+    data.append("name", formState.name)
+    data.append("email", formState.email)
+    data.append("phone", formState.phone)
+    data.append("message", formState.message)
+    if (file) data.append("file", file)
+
+    startTransition(async () => {
+      const result = await sendContactEmail(data)
+      if (result.success) {
+        setStatus("success")
+        setFormState({ name: "", email: "", phone: "", message: "" })
+        removeFile()
+        setTimeout(() => setStatus("idle"), 5000)
+      } else {
+        setStatus("error")
+        setErrorMsg(result.error ?? "Something went wrong.")
+        setTimeout(() => setStatus("idle"), 5000)
+      }
+    })
   }
 
   return (
@@ -116,12 +164,64 @@ export function FooterSection() {
                   className="mt-1 border-card/20 bg-card/5 text-card placeholder:text-card/30 focus-visible:ring-accent resize-none"
                 />
               </div>
+
+              {/* File upload */}
+              <div>
+                <Label className="text-card/70 text-xs tracking-wide">
+                  Attachment <span className="text-card/40">(CSV, DOCX, PDF — max {MAX_MB} MB)</span>
+                </Label>
+                <input
+                  ref={fileRef}
+                  id="file"
+                  type="file"
+                  accept={ACCEPTED}
+                  onChange={handleFileChange}
+                  className="sr-only"
+                />
+                {file ? (
+                  <div className="mt-1 flex items-center gap-2 rounded-md border border-card/20 bg-card/5 px-3 py-2 text-sm text-card">
+                    <Paperclip className="size-4 shrink-0 text-accent" />
+                    <span className="min-w-0 flex-1 truncate">{file.name}</span>
+                    <button
+                      type="button"
+                      onClick={removeFile}
+                      className="shrink-0 text-card/40 transition-colors hover:text-card"
+                      aria-label="Remove file"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => fileRef.current?.click()}
+                    className="mt-1 flex w-full items-center gap-2 rounded-md border border-dashed border-card/20 bg-card/5 px-3 py-2 text-sm text-card/50 transition-colors hover:border-card/40 hover:text-card/70"
+                  >
+                    <Paperclip className="size-4" />
+                    Choose file…
+                  </button>
+                )}
+                {fileError && (
+                  <p className="mt-1 text-xs text-red-400">{fileError}</p>
+                )}
+              </div>
+
+              {status === "success" && (
+                <p className="text-sm text-green-400">
+                  Message sent! We'll be in touch soon.
+                </p>
+              )}
+              {status === "error" && (
+                <p className="text-sm text-red-400">{errorMsg}</p>
+              )}
+
               <Button
                 type="submit"
-                className="mt-2 bg-accent text-accent-foreground hover:bg-accent/90"
+                disabled={isPending}
+                className="mt-2 bg-accent text-accent-foreground hover:bg-accent/90 disabled:opacity-60"
               >
                 <Send className="mr-2 size-4" />
-                {submitted ? "Message Sent!" : "Send Message"}
+                {isPending ? "Sending…" : "Send Message"}
               </Button>
             </form>
           </div>
