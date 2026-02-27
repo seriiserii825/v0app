@@ -1,7 +1,13 @@
 "use client"
 
 import { useRef, useState, useTransition } from "react"
+import dynamic from "next/dynamic"
 import Link from "next/link"
+
+const LeafletMap = dynamic(
+  () => import("@/components/leaflet-map").then((m) => m.LeafletMap),
+  { ssr: false, loading: () => <div className="size-full rounded-lg bg-card/5" /> }
+)
 import {
   MapPin,
   Phone,
@@ -226,21 +232,11 @@ export function FooterSection() {
             </form>
           </div>
 
-          {/* Google Map */}
+          {/* OpenStreetMap via Leaflet */}
           <div className="lg:col-span-1">
             <h3 className="font-serif text-xl text-card">Find Us</h3>
             <div className="mt-6 aspect-[4/3] overflow-hidden rounded-lg">
-              <iframe
-                title="Portale Doors Location"
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3024.4732856768703!2d-73.99036368459377!3d40.71134797933146!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x89c25a22a3bda30d%3A0xb89d1fe6bc499443!2sDowntown%20Manhattan%2C%20New%20York%2C%20NY!5e0!3m2!1sen!2sus!4v1700000000000!5m2!1sen!2sus"
-                width="100%"
-                height="100%"
-                style={{ border: 0 }}
-                allowFullScreen
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-                className="rounded-lg"
-              />
+              <LeafletMap />
             </div>
           </div>
 
